@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import * as tus from "https://esm.sh/tus-js-client@4";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -446,7 +447,7 @@ function openUploadModal() {
   state.uploadFile = null; state.thumbnailFile = null;
   modalRoot.innerHTML = '<div class="modal-backdrop" data-action="close-modal"><section class="modal wide" role="dialog" aria-modal="true" aria-labelledby="upload-title" data-modal-content>' +
     '<div class="modal-head"><h2 id="upload-title">Upload video</h2><button class="modal-close" data-action="close-modal" aria-label="Close">×</button></div>' +
-    '<form id="upload-form"><div class="upload-drop"><div style="font-size:38px">⇧</div><strong>Choose a video to upload</strong><p class="field-help" id="video-file-label">MP4, WebM or MOV · maximum 50 MB</p><label class="primary-btn" for="video-file">Select video</label><input id="video-file" type="file" accept="video/*" hidden required></div>' +
+    '<form id="upload-form"><div class="upload-drop"><div style="font-size:38px">⇧</div><strong>Choose a video to upload</strong><p class="field-help" id="video-file-label">MP4, WebM or MOV · maximum 50 MB</p><progress id="upload-progress" max="100" value="0" hidden style="width:100%;margin-top:12px"></progress><p class="field-help" id="upload-progress-label" aria-live="polite"></p><label class="primary-btn" for="video-file">Select video</label><input id="video-file" type="file" accept="video/*" hidden required></div>' +
     '<div class="field"><label for="video-title">Title</label><input id="video-title" name="title" maxlength="100" placeholder="Add a title that describes your video" required></div>' +
     '<div class="field"><label for="video-description">Description</label><textarea id="video-description" name="description" maxlength="5000" placeholder="Tell viewers about your video"></textarea></div>' +
     '<div class="form-row"><div class="field"><label for="video-category">Category</label><select id="video-category" name="category">' +
@@ -477,6 +478,71 @@ function renderAuthModal() {
     (signup ? "Create account" : "Sign in") + '</button></div></form></section></div>';
 }
 function closeModal() { modalRoot.innerHTML = ""; }
+async function uploadVideoObject(path, file) {
+  const { data: sessionData, error: sessionError } = await state.supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  const session = sessionData.session;
+  if (!session?.access_token) throw new Error("Your sign-in session expired. Sign in again and retry.");
+
+  const config = window.APP_CONFIG || {};
+  const projectId = new URL(config.supabaseUrl).hostname.split(".")[0];
+  const progress = $("#upload-progress");
+  const progressLabel = $("#upload-progress-label");
+
+  if (file.size <= 6 * 1024 * 1024) {
+    if (progress) progress.hidden = true;
+    const { error } = await state.supabase.storage.from("videos").upload(path, file, {
+      cacheControl: "3600", upsert: false, contentType: file.type
+    });
+    if (error) throw error;
+    return;
+  }
+
+  if (progress) {
+    progress.hidden = false;
+    progress.value = 0;
+  }
+  if (progressLabel) progressLabel.textContent = "Starting a resumable upload…";
+
+  await new Promise((resolve, reject) => {
+    const upload = new tus.Upload(file, {
+      endpoint: "https://" + projectId + ".storage.supabase.co/storage/v1/upload/resumable",
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      headers: {
+        authorization: "Bearer " + session.access_token,
+        apikey: config.supabaseAnonKey
+      },
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      chunkSize: 6 * 1024 * 1024,
+      metadata: {
+        bucketName: "videos",
+        objectName: path,
+        contentType: file.type,
+        cacheControl: "3600"
+      },
+      onError(error) {
+        reject(error);
+      },
+      onProgress(bytesUploaded, bytesTotal) {
+        const percentage = Math.min(100, Math.round((bytesUploaded / bytesTotal) * 100));
+        if (progress) progress.value = percentage;
+        if (progressLabel) progressLabel.textContent = percentage + "% uploaded";
+      },
+      onSuccess() {
+        if (progress) progress.value = 100;
+        if (progressLabel) progressLabel.textContent = "Upload complete. Publishing video details…";
+        resolve();
+      }
+    });
+
+    upload.findPreviousUploads().then(previousUploads => {
+      if (previousUploads.length) upload.resumeFromPreviousUpload(previousUploads[0]);
+      upload.start();
+    }).catch(reject);
+  });
+}
+
 async function publishVideo(form) {
   const title = String(form.get("title") || "").trim();
   const description = String(form.get("description") || "").trim();
@@ -495,8 +561,7 @@ async function publishVideo(form) {
       if (!state.user) throw new Error("Sign in before uploading.");
       const extension = (file.name.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "");
       const videoPath = state.user.id + "/" + uniqueId() + "." + extension;
-      const { error: videoError } = await state.supabase.storage.from("videos").upload(videoPath, file, { cacheControl: "3600", upsert: false, contentType: file.type });
-      if (videoError) throw videoError;
+      await uploadVideoObject(videoPath, file);
       let thumbnailPath = null;
       if (state.thumbnailFile) {
         const thumbExt = (state.thumbnailFile.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
