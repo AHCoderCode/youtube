@@ -1,0 +1,10 @@
+{
+  "name": "YouTube",
+  "short_name": "YouTube",
+  "description": "Watch, upload and share videos.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "display_override": ["standalone"]
+}
