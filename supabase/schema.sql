@@ -314,7 +314,7 @@ grant select, insert on public.video_reports to authenticated;
 -- Upload and delete operations remain restricted to the owner's folder.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values
-  ('videos', 'videos', true, 524288000, array['video/mp4','video/webm','video/quicktime','video/x-matroska']),
+  ('videos', 'videos', true, 52428800, array['video/mp4','video/webm','video/quicktime','video/x-matroska']),
   ('thumbnails', 'thumbnails', true, 10485760, array['image/jpeg','image/png','image/webp','image/gif']),
   ('avatars', 'avatars', true, 5242880, array['image/jpeg','image/png','image/webp'])
 on conflict (id) do update set

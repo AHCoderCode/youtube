@@ -446,7 +446,7 @@ function openUploadModal() {
   state.uploadFile = null; state.thumbnailFile = null;
   modalRoot.innerHTML = '<div class="modal-backdrop" data-action="close-modal"><section class="modal wide" role="dialog" aria-modal="true" aria-labelledby="upload-title" data-modal-content>' +
     '<div class="modal-head"><h2 id="upload-title">Upload video</h2><button class="modal-close" data-action="close-modal" aria-label="Close">×</button></div>' +
-    '<form id="upload-form"><div class="upload-drop"><div style="font-size:38px">⇧</div><strong>Choose a video to upload</strong><p class="field-help" id="video-file-label">MP4, WebM or MOV · maximum 500 MB</p><label class="primary-btn" for="video-file">Select video</label><input id="video-file" type="file" accept="video/*" hidden required></div>' +
+    '<form id="upload-form"><div class="upload-drop"><div style="font-size:38px">⇧</div><strong>Choose a video to upload</strong><p class="field-help" id="video-file-label">MP4, WebM or MOV · maximum 50 MB</p><label class="primary-btn" for="video-file">Select video</label><input id="video-file" type="file" accept="video/*" hidden required></div>' +
     '<div class="field"><label for="video-title">Title</label><input id="video-title" name="title" maxlength="100" placeholder="Add a title that describes your video" required></div>' +
     '<div class="field"><label for="video-description">Description</label><textarea id="video-description" name="description" maxlength="5000" placeholder="Tell viewers about your video"></textarea></div>' +
     '<div class="form-row"><div class="field"><label for="video-category">Category</label><select id="video-category" name="category">' +
@@ -486,7 +486,7 @@ async function publishVideo(form) {
   const file = state.uploadFile;
   if (!file) { toast("Choose a video file first."); return; }
   if (!file.type.startsWith("video/")) { toast("Choose a valid video file."); return; }
-  if (file.size > 500 * 1024 * 1024) { toast("This demo is limited to videos up to 500 MB."); return; }
+  if (file.size > 50 * 1024 * 1024) { toast("This demo is limited to videos up to 50 MB."); return; }
   if (!title) { toast("Add a title for your video."); return; }
   const button = $("#publish-button");
   button.disabled = true; button.textContent = "Publishing…";
@@ -736,7 +736,7 @@ document.addEventListener("change", event => {
   if (event.target.id === "video-file") {
     const file = event.target.files && event.target.files[0];
     state.uploadFile = file || null;
-    $("#video-file-label").textContent = file ? file.name + " · " + (file.size / 1048576).toFixed(1) + " MB" : "MP4, WebM or MOV · maximum 500 MB";
+    $("#video-file-label").textContent = file ? file.name + " · " + (file.size / 1048576).toFixed(1) + " MB" : "MP4, WebM or MOV · maximum 50 MB";
     if (file && !$("#video-title").value) $("#video-title").value = file.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ");
   }
   if (event.target.id === "thumbnail-file") {
